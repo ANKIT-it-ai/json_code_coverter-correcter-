@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>JSON Validator & Model Code Generator</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <div class="header">
+      <h1>🔧 JSON Validator & Model Code Generator</h1>
+      <p>Paste JSON → validate → generate model code with Gemini AI</p>
+      <div class="header-links">
+        <a href="/docs">📄 API Documentation</a>
+      </div>
+    </div>
+
+    <!-- Input card -->
+    <div class="card">
+      <textarea
+        id="jsonInput"
+        placeholder='Paste your JSON here...&#10;{&#10;  "name": "Alice",&#10;  "age": 30&#10;}'
+      ></textarea>
+
+      <!-- Controls -->
+      <div class="controls">
+        <select id="language">
+          <option value="typescript">TypeScript</option>
+          <option value="python">Python</option>
+          <option value="java">Java</option>
+          <option value="csharp">C#</option>
+          <option value="go">Go</option>
+        </select>
+
+        <input
+          type="text"
+          id="webhookUrl"
+          placeholder="Webhook URL (optional)"
+        />
+      </div>
+
+      <!-- Action buttons -->
+      <div class="controls">
+        <button id="validateBtn" class="btn btn-primary" disabled>Validate</button>
+        <button id="generateBtn" class="btn btn-secondary" disabled>Generate Code</button>
+        <button id="explainBtn" class="btn btn-warning" disabled>Explain Error</button>
+      </div>
+    </div>
+
+    <!-- Message -->
+    <div id="messageBox" class="message" style="display: none;"></div>
+
+    <!-- Output -->
+    <div id="outputBox" class="output" style="display: none;">
+      <div class="output-header">
+        <h3>Output</h3>
+        <button id="copyBtn" class="btn btn-small">📋 Copy</button>
+      </div>
+      <pre id="outputPre"></pre>
+    </div>
+  </div>
+
+  <script>
+    const API_KEY = __UI_API_KEY__;
+
+    const jsonInput = document.getElementById("jsonInput");
+    const languageEl = document.getElementById("language");
+    const webhookUrlEl = document.getElementById("webhookUrl");
+    const validateBtn = document.getElementById("validateBtn");
+    const generateBtn = document.getElementById("generateBtn");
+    const explainBtn = document.getElementById("explainBtn");
+    const messageBox = document.getElementById("messageBox");
+    const outputBox = document.getElementById("outputBox");
+    const outputPre = document.getElementById("outputPre");
+    const copyBtn = document.getElementById("copyBtn");
+
+    let isLoading = false;
+
+    function updateButtons() {
+      const empty = !jsonInput.value.trim();
+      validateBtn.disabled = isLoading || empty;
+      generateBtn.disabled = isLoading || empty;
+      explainBtn.disabled = isLoading || empty;
+    }
+
+    function setLoading(loading) {
+      isLoading = loading;
+      validateBtn.innerHTML = loading ? '<span class="loading"></span>Validate' : "Validate";
+      generateBtn.innerHTML = loading ? '<span class="loading"></span>Generate Code' : "Generate Code";
+      explainBtn.innerHTML = loading ? '<span class="loading"></span>Explain Error' : "Explain Error";
+      updateButtons();
+    }
+
+    function showMessage(type, text) {
+      messageBox.className = "message message-" + type;
+      messageBox.textContent = text;
+      messageBox.style.display = "block";
+    }
+
+    function clearOutput() {
+      messageBox.style.display = "none";
+      outputBox.style.display = "none";
+      outputPre.textContent = "";
+    }
+
+    function showOutput(text) {
+      outputPre.textContent = text;
+      outputBox.style.display = "block";
+    }
+
+    async function callApi(endpoint, body) {
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": API_KEY,
+        },
+        body: JSON.stringify(body),
+      });
+      return res.json();
+    }
+
+    jsonInput.addEventListener("input", updateButtons);
+
+    validateBtn.addEventListener("click", async () => {
+      setLoading(true);
+      clearOutput();
+      try {
+        const result = await callApi("/api/validate", { json: jsonInput.value });
+        if (result.success) {
+          showMessage("success", "✅ JSON is valid!");
+          showOutput(JSON.stringify(result.data, null, 2));
+        } else {
+          showMessage("error", result.error);
+        }
+      } catch (err) {
+        showMessage("error", "Network error: " + err.message);
+      }
+      setLoading(false);
+    });
+
+    generateBtn.addEventListener("click", async () => {
+      setLoading(true);
+      clearOutput();
+      try {
+        const body = { json: jsonInput.value, language: languageEl.value };
+        if (webhookUrlEl.value.trim()) body.webhook_url = webhookUrlEl.value.trim();
+
+        const result = await callApi("/api/generate", body);
+        if (result.success) {
+          showMessage("success", `✅ Generated ${result.data.language} code (ID: ${result.data.id})`);
+          showOutput(result.data.code);
+        } else {
+          showMessage("error", result.error);
+        }
+      } catch (err) {
+        showMessage("error", "Network error: " + err.message);
+      }
+      setLoading(false);
+    });
+
+    explainBtn.addEventListener("click", async () => {
+      setLoading(true);
+      clearOutput();
+      try {
+        const result = await callApi("/api/explain-error", { json: jsonInput.value });
+        if (result.success) {
+          showMessage("success", "✅ Error explained below");
+          showOutput(result.data.explanation || JSON.stringify(result.data, null, 2));
+        } else {
+          showMessage("error", result.error);
+        }
+      } catch (err) {
+        showMessage("error", "Network error: " + err.message);
+      }
+      setLoading(false);
+    });
+
+    copyBtn.addEventListener("click", () => {
+      navigator.clipboard.writeText(outputPre.textContent);
+      showMessage("success", "📋 Copied to clipboard!");
+    });
+  </script>
+</body>
+</html>
+

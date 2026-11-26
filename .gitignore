@@ -1,0 +1,16 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# env files
+.env*
+!.env.example
+
+# Vercel
+.vercel/
+
+# misc
+.DS_Store
+*.pem

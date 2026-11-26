@@ -1,0 +1,258 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "JSON Validator & Model Code Generator API",
+    "description": "Validate JSON, generate model code with Gemini AI, and deliver webhook events.",
+    "version": "1.0.0"
+  },
+  "servers": [
+    { "url": "http://localhost:3000", "description": "Local dev" },
+    { "url": "https://your-app.vercel.app", "description": "Production" }
+  ],
+  "security": [{ "ApiKeyAuth": [] }],
+  "components": {
+    "securitySchemes": {
+      "ApiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-api-key",
+        "description": "API key for authentication"
+      }
+    },
+    "schemas": {
+      "SuccessResponse": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": true },
+          "data": { "type": "object" }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "example": false },
+          "error": { "type": "string" }
+        }
+      },
+      "WebhookPayload": {
+        "type": "object",
+        "properties": {
+          "event": { "type": "string", "example": "generation.completed" },
+          "id": { "type": "string", "format": "uuid" },
+          "language": { "type": "string", "example": "typescript" },
+          "status": { "type": "string", "example": "success" },
+          "timestamp": { "type": "string", "format": "date-time" }
+        }
+      }
+    }
+  },
+  "paths": {
+    "/api/validate": {
+      "post": {
+        "summary": "Validate JSON",
+        "description": "Parse a JSON string and optionally validate it against a JSON Schema (Ajv).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["json"],
+                "properties": {
+                  "json": { "type": "string", "description": "JSON string to validate" },
+                  "schema": { "type": "object", "description": "Optional JSON Schema" }
+                }
+              },
+              "example": {
+                "json": "{\"name\": \"Alice\", \"age\": 30}"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Validation result",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true,
+                  "data": { "valid": true, "errors": null }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid JSON",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": false,
+                  "error": "Invalid JSON: Unexpected token"
+                }
+              }
+            }
+          },
+          "401": { "description": "API key missing" },
+          "403": { "description": "Invalid API key" },
+          "429": { "description": "Rate limit exceeded" }
+        }
+      }
+    },
+    "/api/generate": {
+      "post": {
+        "summary": "Generate model code",
+        "description": "Validate JSON, then generate model/class code using Gemini AI. Optionally delivers a webhook.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["json", "language"],
+                "properties": {
+                  "json": { "type": "string" },
+                  "language": {
+                    "type": "string",
+                    "enum": ["typescript", "python", "java", "csharp", "go"]
+                  },
+                  "webhook_url": { "type": "string", "format": "uri" }
+                }
+              },
+              "example": {
+                "json": "{\"name\": \"Alice\", \"age\": 30}",
+                "language": "typescript"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Generated code",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true,
+                  "data": {
+                    "id": "550e8400-e29b-41d4-a716-446655440000",
+                    "language": "typescript",
+                    "code": "interface Root {\n  name: string;\n  age: number;\n}",
+                    "webhook": { "delivered": false, "status": null }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Invalid input" },
+          "401": { "description": "API key missing" },
+          "403": { "description": "Invalid API key" },
+          "429": { "description": "Rate limit exceeded" },
+          "500": { "description": "Server / Gemini error" }
+        }
+      }
+    },
+    "/api/explain-error": {
+      "post": {
+        "summary": "Explain JSON error",
+        "description": "Send invalid JSON and get a beginner-friendly explanation of what's wrong, plus a corrected version.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["json"],
+                "properties": {
+                  "json": { "type": "string" }
+                }
+              },
+              "example": {
+                "json": "{name: 'Alice'}"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Explanation",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true,
+                  "data": {
+                    "explanation": "Explanation: Keys must be in double quotes..."
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Missing json field" },
+          "401": { "description": "API key missing" },
+          "403": { "description": "Invalid API key" },
+          "429": { "description": "Rate limit exceeded" }
+        }
+      }
+    },
+    "/api/webhook/test": {
+      "post": {
+        "summary": "Test webhook delivery",
+        "description": "Send a sample signed webhook event to the given URL and report the result.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["webhook_url"],
+                "properties": {
+                  "webhook_url": { "type": "string", "format": "uri" }
+                }
+              },
+              "example": {
+                "webhook_url": "https://webhook.site/your-id"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Delivery result",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true,
+                  "data": {
+                    "test": true,
+                    "webhook_url": "https://webhook.site/your-id",
+                    "delivered": true,
+                    "status": 200,
+                    "error": null
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Invalid or unsafe URL" },
+          "401": { "description": "API key missing" },
+          "403": { "description": "Invalid API key" },
+          "429": { "description": "Rate limit exceeded" }
+        }
+      }
+    },
+    "/api/openapi": {
+      "get": {
+        "summary": "Get OpenAPI spec",
+        "description": "Returns this OpenAPI specification.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "OpenAPI JSON",
+            "content": {
+              "application/json": {}
+            }
+          }
+        }
+      }
+    }
+  }
+}
+

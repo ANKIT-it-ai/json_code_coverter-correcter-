@@ -1,0 +1,253 @@
+/* static/styles.css — Clean, responsive styling */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: #0f172a;
+  color: #e2e8f0;
+  min-height: 100vh;
+}
+
+.container {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+}
+
+/* Header */
+.header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.header h1 {
+  font-size: 1.8rem;
+  background: linear-gradient(135deg, #38bdf8, #818cf8);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin-bottom: 0.5rem;
+}
+
+.header p {
+  color: #94a3b8;
+  font-size: 0.95rem;
+}
+
+.header-links {
+  margin-top: 0.75rem;
+}
+
+.header-links a {
+  color: #38bdf8;
+  text-decoration: none;
+  font-size: 0.85rem;
+}
+
+.header-links a:hover {
+  text-decoration: underline;
+}
+
+/* Card */
+.card {
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 12px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+/* Textarea */
+textarea {
+  width: 100%;
+  min-height: 180px;
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 1rem;
+  color: #e2e8f0;
+  font-family: "Fira Code", "Cascadia Code", monospace;
+  font-size: 0.9rem;
+  resize: vertical;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+textarea:focus {
+  border-color: #38bdf8;
+}
+
+/* Controls row */
+.controls {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+  align-items: center;
+}
+
+select,
+input[type="text"] {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 0.6rem 0.8rem;
+  color: #e2e8f0;
+  font-size: 0.85rem;
+  outline: none;
+}
+
+select:focus,
+input[type="text"]:focus {
+  border-color: #38bdf8;
+}
+
+input[type="text"] {
+  flex: 1;
+  min-width: 200px;
+}
+
+/* Buttons */
+.btn {
+  padding: 0.6rem 1.2rem;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.1s, opacity 0.2s;
+}
+
+.btn:hover {
+  transform: translateY(-1px);
+}
+
+.btn:active {
+  transform: translateY(0);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-primary {
+  background: #38bdf8;
+  color: #0f172a;
+}
+
+.btn-secondary {
+  background: #818cf8;
+  color: #0f172a;
+}
+
+.btn-warning {
+  background: #fb923c;
+  color: #0f172a;
+}
+
+.btn-small {
+  padding: 0.4rem 0.8rem;
+  font-size: 0.75rem;
+  background: #334155;
+  color: #e2e8f0;
+}
+
+/* Output panel */
+.output {
+  margin-top: 1.5rem;
+}
+
+.output-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+}
+
+.output-header h3 {
+  font-size: 0.95rem;
+  color: #94a3b8;
+}
+
+pre {
+  background: #0f172a;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 1rem;
+  overflow-x: auto;
+  font-family: "Fira Code", "Cascadia Code", monospace;
+  font-size: 0.85rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+/* Messages */
+.message {
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  margin-top: 1rem;
+  font-size: 0.85rem;
+}
+
+.message-success {
+  background: #064e3b;
+  border: 1px solid #059669;
+  color: #6ee7b7;
+}
+
+.message-error {
+  background: #450a0a;
+  border: 1px solid #dc2626;
+  color: #fca5a5;
+}
+
+/* Loading spinner */
+.loading {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid transparent;
+  border-top-color: currentColor;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+  margin-right: 0.5rem;
+  vertical-align: middle;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+  .container {
+    padding: 1rem;
+  }
+
+  .header h1 {
+    font-size: 1.3rem;
+  }
+
+  .controls {
+    flex-direction: column;
+  }
+
+  .btn {
+    width: 100%;
+  }
+
+  select,
+  input[type="text"] {
+    width: 100%;
+  }
+}
+
