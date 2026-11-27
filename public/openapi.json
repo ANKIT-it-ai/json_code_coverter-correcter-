@@ -6,8 +6,8 @@
     "version": "1.0.0"
   },
   "servers": [
-    { "url": "http://localhost:3000", "description": "Local dev" },
-    { "url": "https://your-app.vercel.app", "description": "Production" }
+    { "url": "https://json-code-coverter-correcter.vercel.app", "description": "Production" },
+    { "url": "http://localhost:3000", "description": "Local dev" }
   ],
   "security": [{ "ApiKeyAuth": [] }],
   "components": {

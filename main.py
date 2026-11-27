@@ -244,8 +244,11 @@ async def test_webhook(request: Request):
 @app.get("/api/openapi")
 async def get_openapi():
     try:
-        spec = (BASE_DIR / "public" / "openapi.json").read_text(encoding="utf-8")
-        return Response(content=spec, media_type="application/json", status_code=200)
+        for spec_path in (BASE_DIR / "public" / "openapi.json", BASE_DIR / "static" / "openapi.json"):
+            if spec_path.exists():
+                spec = spec_path.read_text(encoding="utf-8")
+                return Response(content=spec, media_type="application/json", status_code=200)
+        return error("OpenAPI spec file not found", 500)
     except Exception:
         return error("Could not load OpenAPI spec", 500)
 
