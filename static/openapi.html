@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OpenAPI JSON — JSONForge</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a href="/" class="brand">
+        <span class="brand-icon">⚡</span>
+        <span class="brand-name">JSONForge</span>
+      </a>
+      <nav class="site-nav" aria-label="Main navigation">
+        <a href="/" class="nav-link">Workspace</a>
+        <a href="/diff" class="nav-link">JSON Diff</a>
+        <a href="/docs" class="nav-link">API Docs</a>
+        <a href="/openapi" class="nav-link active">OpenAPI JSON</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="header">
+      <h1>📜 OpenAPI 3.0 Specification</h1>
+      <p>Full JSONForge OpenAPI schema — search, copy, download, or inspect the raw specification.</p>
+    </div>
+
+    <div class="card">
+      <div class="openapi-toolbar">
+        <input
+          type="text"
+          id="specSearch"
+          placeholder="Search keys, paths, or descriptions (e.g. /api/validate, ApiKeyAuth)..."
+          aria-label="Search OpenAPI specification"
+        />
+        <div class="openapi-actions">
+          <button type="button" id="toggleFormatBtn" class="btn btn-small" disabled>🗜️ Minify</button>
+          <button type="button" id="copySpecBtn" class="btn btn-primary" disabled>📋 Copy JSON</button>
+          <button type="button" id="downloadSpecBtn" class="btn btn-export" disabled>⬇️ Download</button>
+          <a href="/api/openapi?raw=1" target="_blank" rel="noopener" class="btn btn-small openapi-raw-link">Raw JSON ↗</a>
+        </div>
+      </div>
+
+      <div id="specError" class="message message-error" style="display: none;"></div>
+
+      <div class="editor-pane openapi-viewer-pane">
+        <div class="editor-header">
+          <span class="editor-label">
+            openapi.json
+            <span class="badge badge-required" id="specMetaBadge">Loading…</span>
+          </span>
+          <div class="editor-actions">
+            <button type="button" id="iconCopyBtn" class="icon-copy-btn" title="Copy OpenAPI JSON" aria-label="Copy OpenAPI JSON" disabled>
+              <svg class="icon-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+              <svg class="icon-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            </button>
+          </div>
+        </div>
+        <div class="openapi-code-scroll" id="specViewer">
+          <div class="openapi-loading">Loading OpenAPI specification…</div>
+        </div>
+        <div class="editor-status-bar" id="specStatusBar">Fetching /api/openapi…</div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="site-footer-inner">
+      <div class="footer-brand">
+        <strong>⚡ JSONForge</strong>
+        <span>JSON Validator, Auto-Fix &amp; AI Model Code Generator</span>
+      </div>
+      <div class="footer-links">
+        <a href="/">Workspace</a>
+        <a href="/diff">JSON Diff</a>
+        <a href="/docs">API Documentation</a>
+        <a href="/openapi">OpenAPI JSON</a>
+      </div>
+      <div class="footer-copy">© 2026 JSONForge. Powered by FastAPI &amp; Gemini AI.</div>
+    </div>
+  </footer>
+
+  <script>
+    const specSearch = document.getElementById("specSearch");
+    const toggleFormatBtn = document.getElementById("toggleFormatBtn");
+    const copySpecBtn = document.getElementById("copySpecBtn");
+    const downloadSpecBtn = document.getElementById("downloadSpecBtn");
+    const iconCopyBtn = document.getElementById("iconCopyBtn");
+    const specViewer = document.getElementById("specViewer");
+    const specMetaBadge = document.getElementById("specMetaBadge");
+    const specStatusBar = document.getElementById("specStatusBar");
+    const specError = document.getElementById("specError");
+
+    let specObject = null;
+    let prettyText = "";
+    let minifiedText = "";
+    let isMinified = false;
+
+    function escapeHtml(str) {
+      return str
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function highlightJsonLine(line, query) {
+      const tokenRegex = /("(?:\\u[a-fA-F0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(?:true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+-]?\d+)?)/g;
+      let result = "";
+      let lastIdx = 0;
+      let match;
+
+      while ((match = tokenRegex.exec(line)) !== null) {
+        result += escapeHtml(line.slice(lastIdx, match.index));
+        const token = match[0];
+        let cls = "json-number";
+        if (token.startsWith('"')) {
+          cls = match[2] ? "json-key" : "json-string";
+        } else if (token === "true" || token === "false") {
+          cls = "json-bool";
+        } else if (token === "null") {
+          cls = "json-null";
+        }
+        result += `<span class="${cls}">${escapeHtml(token)}</span>`;
+        lastIdx = match.index + token.length;
+      }
+      result += escapeHtml(line.slice(lastIdx));
+
+      if (query) {
+        const lowerLine = line.toLowerCase();
+        if (lowerLine.includes(query)) {
+          return `<span class="openapi-line-match">${result}</span>`;
+        }
+      }
+      return result;
+    }
+
+    function renderSpec() {
+      if (!specObject) return;
+      const text = isMinified ? minifiedText : prettyText;
+      const lines = text.split("\n");
+      const query = specSearch.value.trim().toLowerCase();
+      let matchCount = 0;
+
+      const htmlParts = [];
+      for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+        const isMatch = query && line.toLowerCase().includes(query);
+        if (query && !isMinified && !isMatch) {
+          continue;
+        }
+        if (isMatch) matchCount++;
+        const highlighted = highlightJsonLine(line, query);
+        htmlParts.push(
+          `<div class="openapi-line${isMatch ? " is-match" : ""}">` +
+            `<span class="openapi-line-num">${i + 1}</span>` +
+            `<span class="openapi-line-text">${highlighted || " "}</span>` +
+          `</div>`
+        );
+      }
+
+      if (htmlParts.length === 0) {
+        specViewer.innerHTML = '<div class="openapi-empty">No matching lines found in the OpenAPI specification.</div>';
+      } else {
+        specViewer.innerHTML = `<div class="openapi-code">${htmlParts.join("")}</div>`;
+      }
+
+      const pathCount = specObject.paths ? Object.keys(specObject.paths).length : 0;
+      const baseStatus = `OAS ${specObject.openapi || "3.0"} • v${specObject.info?.version || "1.0"} • ${pathCount} endpoints • ${lines.length} lines`;
+      if (query && !isMinified) {
+        specStatusBar.textContent = `${baseStatus} • Showing ${matchCount} matching line${matchCount === 1 ? "" : "s"}`;
+      } else {
+        specStatusBar.textContent = baseStatus;
+      }
+      specStatusBar.className = "editor-status-bar valid";
+    }
+
+    async function copyText(text, btn, defaultLabel) {
+      try {
+        await navigator.clipboard.writeText(text);
+        if (btn.classList.contains("icon-copy-btn")) {
+          btn.classList.add("copied");
+          setTimeout(() => btn.classList.remove("copied"), 1500);
+        } else {
+          btn.textContent = "✅ Copied!";
+          setTimeout(() => { btn.textContent = defaultLabel; }, 1500);
+        }
+      } catch {
+        specError.textContent = "Failed to copy to clipboard. Use Download or Raw JSON instead.";
+        specError.style.display = "block";
+      }
+    }
+
+    toggleFormatBtn.addEventListener("click", () => {
+      isMinified = !isMinified;
+      toggleFormatBtn.textContent = isMinified ? "✨ Pretty-print" : "🗜️ Minify";
+      renderSpec();
+    });
+
+    specSearch.addEventListener("input", renderSpec);
+
+    copySpecBtn.addEventListener("click", () => {
+      const text = isMinified ? minifiedText : prettyText;
+      copyText(text, copySpecBtn, "📋 Copy JSON");
+    });
+
+    iconCopyBtn.addEventListener("click", () => {
+      const text = isMinified ? minifiedText : prettyText;
+      copyText(text, iconCopyBtn, "");
+    });
+
+    downloadSpecBtn.addEventListener("click", () => {
+      const text = isMinified ? minifiedText : prettyText;
+      const blob = new Blob([text], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "openapi.json";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    });
+
+    async function loadOpenApiSpec() {
+      try {
+        const res = await fetch("/api/openapi", {
+          headers: { Accept: "application/json" }
+        });
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`);
+        }
+        specObject = await res.json();
+        prettyText = JSON.stringify(specObject, null, 2);
+        minifiedText = JSON.stringify(specObject);
+
+        const pathCount = specObject.paths ? Object.keys(specObject.paths).length : 0;
+        specMetaBadge.textContent = `OAS ${specObject.openapi || "3.0"} • ${pathCount} endpoints`;
+
+        toggleFormatBtn.disabled = false;
+        copySpecBtn.disabled = false;
+        downloadSpecBtn.disabled = false;
+        iconCopyBtn.disabled = false;
+
+        renderSpec();
+      } catch (err) {
+        specMetaBadge.textContent = "Error";
+        specError.textContent = `Could not load OpenAPI specification: ${err.message}`;
+        specError.style.display = "block";
+        specViewer.innerHTML = '<div class="openapi-empty">Failed to load OpenAPI spec.</div>';
+        specStatusBar.textContent = "Error loading /api/openapi";
+        specStatusBar.className = "editor-status-bar invalid";
+      }
+    }
+
+    loadOpenApiSpec();
+  </script>
+</body>
+</html>
+

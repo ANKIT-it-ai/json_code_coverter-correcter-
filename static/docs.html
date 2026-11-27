@@ -3,35 +3,79 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>API Documentation — JSON Validator & Model Code Generator</title>
+  <title>API Documentation — JSONForge</title>
   <link rel="stylesheet" href="/static/styles.css" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui.css" />
 </head>
 <body>
-  <div class="container">
-    <div class="header">
-      <h1>📄 API Documentation</h1>
-      <p>Interactive API docs powered by Swagger UI</p>
-      <div class="header-links">
-        <a href="/">← Back to App</a>
-      </div>
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a href="/" class="brand">
+        <span class="brand-icon">⚡</span>
+        <span class="brand-name">JSONForge</span>
+      </a>
+      <nav class="site-nav" aria-label="Main navigation">
+        <a href="/" class="nav-link">Workspace</a>
+        <a href="/diff" class="nav-link">JSON Diff</a>
+        <a href="/docs" class="nav-link active">API Docs</a>
+        <a href="/openapi" class="nav-link">OpenAPI JSON</a>
+      </nav>
     </div>
+  </header>
+
+  <main class="container">
+    <div class="header">
+      <h1>📄 JSONForge API Documentation</h1>
+      <p>Interactive OpenAPI 3.0 reference — click <strong>Authorize</strong> to enter your <code>x-api-key</code> and test endpoints live.</p>
+    </div>
+
+    <div id="docsError" class="message message-error" style="display: none; margin-bottom: 1rem;"></div>
+
     <div
       id="swagger-ui"
-      style="background: #fff; border-radius: 12px; padding: 1rem; min-height: 400px;"
+      style="background: #fff; border-radius: 12px; padding: 1rem; min-height: 450px; box-shadow: 0 8px 24px rgba(2, 6, 23, 0.35);"
     ></div>
-  </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="site-footer-inner">
+      <div class="footer-brand">
+        <strong>⚡ JSONForge</strong>
+        <span>JSON Validator, Auto-Fix &amp; AI Model Code Generator</span>
+      </div>
+      <div class="footer-links">
+        <a href="/">Workspace</a>
+        <a href="/diff">JSON Diff</a>
+        <a href="/docs">API Documentation</a>
+        <a href="/openapi">OpenAPI Spec</a>
+      </div>
+      <div class="footer-copy">© 2026 JSONForge. Powered by FastAPI &amp; Gemini AI.</div>
+    </div>
+  </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@5/swagger-ui-standalone-preset.js"></script>
   <script>
-    window.SwaggerUIBundle({
-      url: "/api/openapi",
-      dom_id: "#swagger-ui",
-      presets: [window.SwaggerUIBundle.presets.apis],
-      layout: "BaseLayout",
-      deepLinking: true,
+    window.addEventListener("DOMContentLoaded", () => {
+      if (typeof window.SwaggerUIBundle !== "function") {
+        const errEl = document.getElementById("docsError");
+        errEl.textContent = "Could not load Swagger UI assets. Check your internet connection or view the raw OpenAPI spec at /api/openapi.";
+        errEl.style.display = "block";
+        return;
+      }
+      window.SwaggerUIBundle({
+        url: "/api/openapi",
+        dom_id: "#swagger-ui",
+        deepLinking: true,
+        tryItOutEnabled: true,
+        persistAuthorization: true,
+        presets: [
+          window.SwaggerUIBundle.presets.apis,
+          window.SwaggerUIStandalonePreset
+        ],
+        layout: "BaseLayout"
+      });
     });
   </script>
 </body>
 </html>
-

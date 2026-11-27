@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>JSON Diff — JSONForge</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="site-header-inner">
+      <a href="/" class="brand">
+        <span class="brand-icon">⚡</span>
+        <span class="brand-name">JSONForge</span>
+      </a>
+      <nav class="site-nav" aria-label="Main navigation">
+        <a href="/" class="nav-link">Workspace</a>
+        <a href="/diff" class="nav-link active">JSON Diff</a>
+        <a href="/docs" class="nav-link">API Docs</a>
+        <a href="/openapi" class="nav-link">OpenAPI JSON</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="header">
+      <h1>🔀 JSON Diff</h1>
+      <p>Compare two JSON payloads side by side — spot added, removed, and changed fields instantly</p>
+    </div>
+
+    <div class="card">
+      <div class="editor-grid diff-row">
+        <div class="editor-pane">
+          <div class="editor-header">
+            <span class="editor-label">Left JSON</span>
+            <div class="editor-actions">
+              <button type="button" id="formatLeftBtn" class="btn-editor-tool" title="Format Left JSON" disabled>✨ Format</button>
+              <button type="button" class="icon-copy-btn" data-copy-target="diffLeft" title="Copy Left JSON" aria-label="Copy Left JSON">
+                <svg class="icon-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                <svg class="icon-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              </button>
+            </div>
+          </div>
+          <div class="diff-editor-wrapper">
+            <div class="diff-gutter" id="diffLeftGutter" aria-hidden="true"></div>
+            <div class="editor-wrapper diff-editor-inner">
+              <div class="editor-backdrop diff-backdrop" id="diffLeftBackdrop" aria-hidden="true">
+                <div class="editor-highlights" id="diffLeftHighlights"></div>
+              </div>
+              <textarea id="diffLeft" class="code-textarea diff-textarea" spellcheck="false" wrap="off" placeholder='Paste Left JSON...&#10;{&#10;  "name": "Alice",&#10;  "age": 30&#10;}'></textarea>
+            </div>
+          </div>
+        </div>
+
+        <div class="editor-pane">
+          <div class="editor-header">
+            <span class="editor-label">Right JSON</span>
+            <div class="editor-actions">
+              <button type="button" id="formatRightBtn" class="btn-editor-tool" title="Format Right JSON" disabled>✨ Format</button>
+              <button type="button" class="icon-copy-btn" data-copy-target="diffRight" title="Copy Right JSON" aria-label="Copy Right JSON">
+                <svg class="icon-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+                <svg class="icon-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              </button>
+            </div>
+          </div>
+          <div class="diff-editor-wrapper">
+            <div class="diff-gutter" id="diffRightGutter" aria-hidden="true"></div>
+            <div class="editor-wrapper diff-editor-inner">
+              <div class="editor-backdrop diff-backdrop" id="diffRightBackdrop" aria-hidden="true">
+                <div class="editor-highlights" id="diffRightHighlights"></div>
+              </div>
+              <textarea id="diffRight" class="code-textarea diff-textarea" spellcheck="false" wrap="off" placeholder='Paste Right JSON...&#10;{&#10;  "name": "Alice",&#10;  "age": 31,&#10;  "role": "admin"&#10;}'></textarea>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="controls">
+        <button id="diffBtn" class="btn btn-info" disabled>Compare</button>
+        <button id="swapBtn" type="button" class="btn btn-small" disabled>⇄ Swap</button>
+        <button id="clearDiffBtn" type="button" class="btn btn-small" disabled>Clear</button>
+      </div>
+
+      <div id="messageBox" class="message" style="display: none;"></div>
+      <div id="diffResults" style="display: none;"></div>
+    </div>
+  </main>
+
+  <footer class="site-footer">
+    <div class="site-footer-inner">
+      <div class="footer-brand">
+        <strong>⚡ JSONForge</strong>
+        <span>JSON Validator, Auto-Fix &amp; AI Model Code Generator</span>
+      </div>
+      <div class="footer-links">
+        <a href="/">Workspace</a>
+        <a href="/diff">JSON Diff</a>
+        <a href="/docs">API Documentation</a>
+        <a href="/openapi">OpenAPI Spec</a>
+      </div>
+      <div class="footer-copy">© 2026 JSONForge. Powered by FastAPI &amp; Gemini AI.</div>
+    </div>
+  </footer>
+
+  <script>
+    const API_KEY = __UI_API_KEY__;
+
+    const STATUS_MSG = {
+      400: "Invalid input",
+      401: "API key missing",
+      403: "Invalid API key",
+      429: "Too many requests, wait a minute",
+      500: "Server error"
+    };
+
+    const diffLeft            = document.getElementById("diffLeft");
+    const diffRight           = document.getElementById("diffRight");
+    const diffLeftGutter      = document.getElementById("diffLeftGutter");
+    const diffRightGutter     = document.getElementById("diffRightGutter");
+    const diffLeftBackdrop    = document.getElementById("diffLeftBackdrop");
+    const diffRightBackdrop   = document.getElementById("diffRightBackdrop");
+    const diffLeftHighlights  = document.getElementById("diffLeftHighlights");
+    const diffRightHighlights = document.getElementById("diffRightHighlights");
+    const formatLeftBtn       = document.getElementById("formatLeftBtn");
+    const formatRightBtn      = document.getElementById("formatRightBtn");
+    const diffBtn             = document.getElementById("diffBtn");
+    const swapBtn             = document.getElementById("swapBtn");
+    const clearDiffBtn        = document.getElementById("clearDiffBtn");
+    const messageBox          = document.getElementById("messageBox");
+    const diffResults         = document.getElementById("diffResults");
+
+    let isLoading = false;
+
+    function escapeHtml(str) {
+      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+    }
+
+    function showMessage(type, text) {
+      messageBox.className = "message message-" + type;
+      messageBox.textContent = text;
+      messageBox.style.display = "block";
+    }
+
+    function hideMessage() {
+      messageBox.style.display = "none";
+    }
+
+    function updateDiffButtons() {
+      const leftEmpty = !diffLeft.value.trim();
+      const rightEmpty = !diffRight.value.trim();
+      formatLeftBtn.disabled = isLoading || leftEmpty;
+      formatRightBtn.disabled = isLoading || rightEmpty;
+      diffBtn.disabled = isLoading || leftEmpty || rightEmpty;
+      swapBtn.disabled = isLoading || (leftEmpty && rightEmpty);
+      clearDiffBtn.disabled = isLoading || (leftEmpty && rightEmpty);
+    }
+
+    function setLoading(btn, loading, label) {
+      isLoading = loading;
+      if (btn) {
+        btn.innerHTML = loading ? '<span class="loading"></span>' + label : label;
+      }
+      updateDiffButtons();
+    }
+
+    async function callApi(endpoint, body) {
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": API_KEY,
+        },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!data.success && !data.error) {
+        data.error = STATUS_MSG[res.status] || "Unknown error";
+      }
+      data._status = res.status;
+      return data;
+    }
+
+    function friendlyError(result) {
+      if (result.error) return result.error;
+      return STATUS_MSG[result._status] || "Something went wrong";
+    }
+
+    function syncDiffScroll(textarea, gutter, backdrop) {
+      gutter.scrollTop = textarea.scrollTop;
+      backdrop.scrollTop = textarea.scrollTop;
+      backdrop.scrollLeft = textarea.scrollLeft;
+    }
+
+    function renderDiffEditor(textarea, gutter, backdrop, highlightsEl, lineMarks = {}) {
+      const lines = textarea.value.split("\n");
+      let gutterHtml = "";
+      let highlightHtml = "";
+      lines.forEach((l, idx) => {
+        const num = idx + 1;
+        const mark = lineMarks[num];
+        const gutterCls = mark ? " diff-gutter-" + mark : "";
+        const lineCls = mark ? " diff-line-" + mark : "";
+        gutterHtml += '<span class="diff-gutter-line' + gutterCls + '">' + num + "</span>";
+        highlightHtml += '<span class="editor-line' + lineCls + '">' + (l.length ? escapeHtml(l) : " ") + "</span>";
+      });
+      gutter.innerHTML = gutterHtml;
+      highlightsEl.innerHTML = highlightHtml;
+      syncDiffScroll(textarea, gutter, backdrop);
+    }
+
+    function computeLineDiff(leftStr, rightStr) {
+      const a = leftStr.split("\n");
+      const b = rightStr.split("\n");
+      const leftMarks = {};
+      const rightMarks = {};
+      const m = a.length;
+      const n = b.length;
+
+      if (m * n > 400000) {
+        const maxLen = Math.max(m, n);
+        for (let i = 0; i < maxLen; i++) {
+          if (i < m && i < n) {
+            if (a[i] !== b[i]) {
+              leftMarks[i + 1] = "changed";
+              rightMarks[i + 1] = "changed";
+            }
+          } else if (i < m) {
+            leftMarks[i + 1] = "removed";
+          } else {
+            rightMarks[i + 1] = "added";
+          }
+        }
+        return { leftMarks, rightMarks };
+      }
+
+      const dp = Array.from({ length: m + 1 }, () => new Uint32Array(n + 1));
+      for (let i = m - 1; i >= 0; i--) {
+        for (let j = n - 1; j >= 0; j--) {
+          if (a[i] === b[j]) {
+            dp[i][j] = dp[i + 1][j + 1] + 1;
+          } else {
+            dp[i][j] = dp[i + 1][j] >= dp[i][j + 1] ? dp[i + 1][j] : dp[i][j + 1];
+          }
+        }
+      }
+
+      let i = 0, j = 0;
+      while (i < m || j < n) {
+        if (i < m && j < n && a[i] === b[j]) {
+          i++;
+          j++;
+        } else {
+          const leftHunk = [];
+          const rightHunk = [];
+          while (i < m && (j >= n || dp[i + 1][j] >= dp[i][j + 1])) {
+            if (j < n && a[i] === b[j]) break;
+            leftHunk.push(i + 1);
+            i++;
+          }
+          while (j < n && (i >= m || dp[i][j + 1] > dp[i + 1][j])) {
+            if (i < m && a[i] === b[j]) break;
+            rightHunk.push(j + 1);
+            j++;
+          }
+          const kindLeft = leftHunk.length && rightHunk.length ? "changed" : "removed";
+          const kindRight = leftHunk.length && rightHunk.length ? "changed" : "added";
+          leftHunk.forEach(ln => { leftMarks[ln] = kindLeft; });
+          rightHunk.forEach(ln => { rightMarks[ln] = kindRight; });
+        }
+      }
+      return { leftMarks, rightMarks };
+    }
+
+    function formatDiffPane(textarea, gutter, backdrop, highlightsEl, label) {
+      hideMessage();
+      try {
+        const parsed = JSON.parse(textarea.value);
+        textarea.value = JSON.stringify(parsed, null, 2);
+        renderDiffEditor(textarea, gutter, backdrop, highlightsEl);
+        updateDiffButtons();
+      } catch (err) {
+        showMessage("error", "Cannot format " + label + " JSON: " + err.message);
+      }
+    }
+
+    document.querySelectorAll(".icon-copy-btn").forEach(btn => {
+      btn.addEventListener("click", () => {
+        const target = document.getElementById(btn.dataset.copyTarget);
+        if (!target) return;
+        navigator.clipboard.writeText(target.value);
+        btn.classList.add("copied");
+        setTimeout(() => btn.classList.remove("copied"), 1500);
+      });
+    });
+
+    diffLeft.addEventListener("input", () => {
+      renderDiffEditor(diffLeft, diffLeftGutter, diffLeftBackdrop, diffLeftHighlights);
+      updateDiffButtons();
+    });
+    diffLeft.addEventListener("scroll", () => {
+      syncDiffScroll(diffLeft, diffLeftGutter, diffLeftBackdrop);
+    });
+    diffRight.addEventListener("input", () => {
+      renderDiffEditor(diffRight, diffRightGutter, diffRightBackdrop, diffRightHighlights);
+      updateDiffButtons();
+    });
+    diffRight.addEventListener("scroll", () => {
+      syncDiffScroll(diffRight, diffRightGutter, diffRightBackdrop);
+    });
+
+    formatLeftBtn.addEventListener("click", () => {
+      formatDiffPane(diffLeft, diffLeftGutter, diffLeftBackdrop, diffLeftHighlights, "Left");
+    });
+    formatRightBtn.addEventListener("click", () => {
+      formatDiffPane(diffRight, diffRightGutter, diffRightBackdrop, diffRightHighlights, "Right");
+    });
+
+    swapBtn.addEventListener("click", () => {
+      const tmp = diffLeft.value;
+      diffLeft.value = diffRight.value;
+      diffRight.value = tmp;
+      renderDiffEditor(diffLeft, diffLeftGutter, diffLeftBackdrop, diffLeftHighlights);
+      renderDiffEditor(diffRight, diffRightGutter, diffRightBackdrop, diffRightHighlights);
+      diffResults.style.display = "none";
+      hideMessage();
+      updateDiffButtons();
+    });
+
+    clearDiffBtn.addEventListener("click", () => {
+      diffLeft.value = "";
+      diffRight.value = "";
+      renderDiffEditor(diffLeft, diffLeftGutter, diffLeftBackdrop, diffLeftHighlights);
+      renderDiffEditor(diffRight, diffRightGutter, diffRightBackdrop, diffRightHighlights);
+      diffResults.style.display = "none";
+      hideMessage();
+      updateDiffButtons();
+    });
+
+    renderDiffEditor(diffLeft, diffLeftGutter, diffLeftBackdrop, diffLeftHighlights);
+    renderDiffEditor(diffRight, diffRightGutter, diffRightBackdrop, diffRightHighlights);
+    updateDiffButtons();
+
+    diffBtn.addEventListener("click", async () => {
+      setLoading(diffBtn, true, "Compare");
+      hideMessage();
+      diffResults.style.display = "none";
+      try {
+        const result = await callApi("/api/diff", {
+          left: diffLeft.value,
+          right: diffRight.value,
+        });
+        if (result.success) {
+          const d = result.data;
+          if (d.identical) {
+            renderDiffEditor(diffLeft, diffLeftGutter, diffLeftBackdrop, diffLeftHighlights);
+            renderDiffEditor(diffRight, diffRightGutter, diffRightBackdrop, diffRightHighlights);
+            diffResults.innerHTML = '<div class="diff-identical">✅ Both JSON values are identical.</div>';
+          } else {
+            const { leftMarks, rightMarks } = computeLineDiff(diffLeft.value, diffRight.value);
+            renderDiffEditor(diffLeft, diffLeftGutter, diffLeftBackdrop, diffLeftHighlights, leftMarks);
+            renderDiffEditor(diffRight, diffRightGutter, diffRightBackdrop, diffRightHighlights, rightMarks);
+            let html = "";
+            if (d.added.length) {
+              html += '<div class="diff-group diff-added"><h4>➕ Added (' + d.added.length + ')</h4>';
+              d.added.forEach(i => { html += '<div class="diff-item"><b>' + escapeHtml(i.path) + '</b>: ' + escapeHtml(JSON.stringify(i.value)) + '</div>'; });
+              html += '</div>';
+            }
+            if (d.removed.length) {
+              html += '<div class="diff-group diff-removed"><h4>➖ Removed (' + d.removed.length + ')</h4>';
+              d.removed.forEach(i => { html += '<div class="diff-item"><b>' + escapeHtml(i.path) + '</b>: ' + escapeHtml(JSON.stringify(i.value)) + '</div>'; });
+              html += '</div>';
+            }
+            if (d.changed.length) {
+              html += '<div class="diff-group diff-changed"><h4>✏️ Changed (' + d.changed.length + ')</h4>';
+              d.changed.forEach(i => { html += '<div class="diff-item"><b>' + escapeHtml(i.path) + '</b>: ' + escapeHtml(JSON.stringify(i.from)) + ' → ' + escapeHtml(JSON.stringify(i.to)) + '</div>'; });
+              html += '</div>';
+            }
+            diffResults.innerHTML = html;
+          }
+          diffResults.style.display = "block";
+        } else {
+          showMessage("error", friendlyError(result));
+        }
+      } catch (err) {
+        showMessage("error", "Network error: " + err.message);
+      }
+      setLoading(diffBtn, false, "Compare");
+    });
+  </script>
+</body>
+</html>
+

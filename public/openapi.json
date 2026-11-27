@@ -1,13 +1,14 @@
 {
   "openapi": "3.0.3",
   "info": {
-    "title": "JSON Validator & Model Code Generator API",
-    "description": "Validate JSON, generate model code with Gemini AI, and deliver webhook events.",
-    "version": "1.0.0"
+    "title": "JSONForge API",
+    "description": "Validate JSON, generate model code with Gemini AI, auto-fix JSON, diff, generate sample data, and batch generate.",
+    "version": "2.0.0"
   },
   "servers": [
-    { "url": "https://json-code-coverter-correcter.vercel.app", "description": "Production" },
-    { "url": "http://localhost:3000", "description": "Local dev" }
+    { "url": "/", "description": "Current server" },
+    { "url": "http://localhost:8000", "description": "Local FastAPI dev" },
+    { "url": "https://json-code-coverter-correcter.vercel.app", "description": "Production" }
   ],
   "security": [{ "ApiKeyAuth": [] }],
   "components": {
@@ -31,17 +32,8 @@
         "type": "object",
         "properties": {
           "success": { "type": "boolean", "example": false },
-          "error": { "type": "string" }
-        }
-      },
-      "WebhookPayload": {
-        "type": "object",
-        "properties": {
-          "event": { "type": "string", "example": "generation.completed" },
-          "id": { "type": "string", "format": "uuid" },
-          "language": { "type": "string", "example": "typescript" },
-          "status": { "type": "string", "example": "success" },
-          "timestamp": { "type": "string", "format": "date-time" }
+          "error": { "type": "string" },
+          "data": { "type": "object", "description": "Optional error details (e.g. line/column)" }
         }
       }
     }
@@ -50,7 +42,7 @@
     "/api/validate": {
       "post": {
         "summary": "Validate JSON",
-        "description": "Parse a JSON string and optionally validate it against a JSON Schema (Ajv).",
+        "description": "Parse a JSON string and optionally validate it against a JSON Schema. Returns line/column on parse errors.",
         "requestBody": {
           "required": true,
           "content": {
@@ -82,12 +74,13 @@
             }
           },
           "400": {
-            "description": "Invalid JSON",
+            "description": "Invalid JSON (with line/column info)",
             "content": {
               "application/json": {
                 "example": {
                   "success": false,
-                  "error": "Invalid JSON: Unexpected token"
+                  "error": "Invalid JSON: Expecting ',' delimiter (line 3, col 5)",
+                  "data": { "line": 3, "column": 5, "position": 42 }
                 }
               }
             }
@@ -145,7 +138,7 @@
           "400": { "description": "Invalid input" },
           "401": { "description": "API key missing" },
           "403": { "description": "Invalid API key" },
-          "429": { "description": "Rate limit exceeded" },
+          "429": { "description": "Rate limit or AI quota exceeded" },
           "500": { "description": "Server / Gemini error" }
         }
       }
@@ -238,6 +231,199 @@
         }
       }
     },
+    "/api/fix-json": {
+      "post": {
+        "summary": "Auto-fix invalid JSON",
+        "description": "Send invalid JSON and Gemini AI will attempt to fix it. Returns pretty-printed valid JSON.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["json"],
+                "properties": {
+                  "json": { "type": "string" }
+                }
+              },
+              "example": {
+                "json": "{name: 'Alice', age: 30,}"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Fixed JSON",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true,
+                  "data": {
+                    "fixed": "{\n  \"name\": \"Alice\",\n  \"age\": 30\n}"
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Missing json field" },
+          "401": { "description": "API key missing" },
+          "403": { "description": "Invalid API key" },
+          "422": { "description": "AI could not produce valid JSON" },
+          "429": { "description": "Rate limit or AI quota exceeded" }
+        }
+      }
+    },
+    "/api/diff": {
+      "post": {
+        "summary": "Compare two JSON values",
+        "description": "Parse two JSON strings and return a recursive diff (added, removed, changed fields). No AI is used.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["left", "right"],
+                "properties": {
+                  "left": { "type": "string", "description": "Left JSON string" },
+                  "right": { "type": "string", "description": "Right JSON string" }
+                }
+              },
+              "example": {
+                "left": "{\"name\": \"Alice\", \"age\": 30}",
+                "right": "{\"name\": \"Bob\", \"age\": 25, \"city\": \"NYC\"}"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Diff result",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true,
+                  "data": {
+                    "added": [{ "path": "city", "value": "NYC" }],
+                    "removed": [],
+                    "changed": [
+                      { "path": "name", "from": "Alice", "to": "Bob" },
+                      { "path": "age", "from": 30, "to": 25 }
+                    ],
+                    "identical": false
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Invalid JSON on left or right side" },
+          "401": { "description": "API key missing" },
+          "403": { "description": "Invalid API key" },
+          "429": { "description": "Rate limit exceeded" }
+        }
+      }
+    },
+    "/api/sample": {
+      "post": {
+        "summary": "Generate sample JSON data",
+        "description": "Describe the data you want and Gemini AI generates realistic mock JSON.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["description"],
+                "properties": {
+                  "description": { "type": "string", "maxLength": 200 }
+                }
+              },
+              "example": {
+                "description": "a user with address and orders"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Generated sample JSON",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true,
+                  "data": {
+                    "json": "{\n  \"name\": \"Alice\",\n  \"address\": { \"city\": \"NYC\" },\n  \"orders\": [{ \"id\": 1, \"total\": 29.99 }]\n}"
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Missing or too-long description" },
+          "401": { "description": "API key missing" },
+          "403": { "description": "Invalid API key" },
+          "422": { "description": "AI could not produce valid JSON" },
+          "429": { "description": "Rate limit or AI quota exceeded" }
+        }
+      }
+    },
+    "/api/generate/batch": {
+      "post": {
+        "summary": "Batch generate model code",
+        "description": "Generate model code for multiple languages in parallel. Partial failures return 200 with per-language status.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["json", "languages"],
+                "properties": {
+                  "json": { "type": "string" },
+                  "languages": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": ["typescript", "python", "java", "csharp", "go"]
+                    },
+                    "minItems": 1,
+                    "maxItems": 5
+                  },
+                  "webhook_url": { "type": "string", "format": "uri" }
+                }
+              },
+              "example": {
+                "json": "{\"name\": \"Alice\", \"age\": 30}",
+                "languages": ["typescript", "python"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Batch results (may include partial failures)",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": true,
+                  "data": {
+                    "id": "550e8400-e29b-41d4-a716-446655440000",
+                    "results": [
+                      { "language": "typescript", "status": "success", "code": "interface Root { ... }" },
+                      { "language": "python", "status": "success", "code": "class Root: ..." }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": { "description": "Invalid input, unknown language, or duplicates" },
+          "401": { "description": "API key missing" },
+          "403": { "description": "Invalid API key" },
+          "429": { "description": "Rate limit or AI quota exceeded" }
+        }
+      }
+    },
     "/api/openapi": {
       "get": {
         "summary": "Get OpenAPI spec",
@@ -255,4 +441,3 @@
     }
   }
 }
-

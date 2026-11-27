@@ -11,6 +11,13 @@ rate limiting, and interactive Swagger UI documentation.
 - **JSON Validation** — Parse JSON and optionally validate against a JSON Schema (`jsonschema`)
 - **Model Code Generation** — Generate TypeScript, Python, Java, C#, or Go models from JSON using Gemini AI
 - **Error Explanation** — Gemini explains what's wrong with invalid JSON in simple English
+- **Auto-fix JSON** — Gemini attempts to fix broken JSON automatically
+- **JSON Diff** — Compare two JSON values recursively (no AI, pure logic)
+- **Sample Data Generator** — Describe data and Gemini creates realistic mock JSON
+- **Batch Generate** — Generate model code for up to 5 languages in parallel
+- **Schema Validation** — Validate JSON against a JSON Schema in the UI
+- **Copy & Download** — Copy generated code or download it with the correct file extension
+- **Error Line Highlight** — See exactly which line has the JSON error
 - **Webhook Delivery** — HMAC-SHA256-signed webhook events on code generation
 - **API Key Auth** — Secure all endpoints with `x-api-key` header
 - **Rate Limiting** — 30 requests/minute per key (in-memory)
@@ -101,7 +108,7 @@ Send the header `x-api-key: <your-key>` with every request (except `GET /api/ope
 
 ### POST /api/validate
 
-Validate a JSON string, optionally against a JSON Schema.
+Validate a JSON string, optionally against a JSON Schema. Returns line/column on parse errors.
 
 ```bash
 curl -X POST http://localhost:3000/api/validate \
@@ -134,6 +141,58 @@ curl -X POST http://localhost:3000/api/explain-error \
   -H "Content-Type: application/json" \
   -H "x-api-key: my-secret-key-1" \
   -d '{"json": "{name: \"Alice\"}"}'
+```
+
+---
+
+### POST /api/fix-json
+
+Auto-fix invalid JSON using Gemini AI. Returns pretty-printed valid JSON.
+
+```bash
+curl -X POST http://localhost:3000/api/fix-json \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: my-secret-key-1" \
+  -d '{"json": "{name: \"Alice\", age: 30,}"}'
+```
+
+---
+
+### POST /api/diff
+
+Compare two JSON values and get a recursive diff (no AI).
+
+```bash
+curl -X POST http://localhost:3000/api/diff \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: my-secret-key-1" \
+  -d '{"left": "{\"name\": \"Alice\", \"age\": 30}", "right": "{\"name\": \"Bob\", \"age\": 25, \"city\": \"NYC\"}"}'
+```
+
+---
+
+### POST /api/sample
+
+Generate realistic mock JSON from a description.
+
+```bash
+curl -X POST http://localhost:3000/api/sample \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: my-secret-key-1" \
+  -d '{"description": "a user with address and orders"}'
+```
+
+---
+
+### POST /api/generate/batch
+
+Generate model code for multiple languages in parallel.
+
+```bash
+curl -X POST http://localhost:3000/api/generate/batch \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: my-secret-key-1" \
+  -d '{"json": "{\"name\": \"Alice\", \"age\": 30}", "languages": ["typescript", "python", "java"]}'
 ```
 
 ---
@@ -171,6 +230,20 @@ When a code generation request includes `webhook_url`, the server POSTs:
   "id": "550e8400-e29b-41d4-a716-446655440000",
   "language": "typescript",
   "status": "success",
+  "timestamp": "2025-01-15T10:30:00.000Z"
+}
+```
+
+For batch generation with `webhook_url`:
+
+```json
+{
+  "event": "batch.completed",
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "results": [
+    { "language": "typescript", "status": "success" },
+    { "language": "python", "status": "success" }
+  ],
   "timestamp": "2025-01-15T10:30:00.000Z"
 }
 ```
@@ -222,8 +295,9 @@ json-model-gen/
 ├── static/
 │   ├── index.html               # Frontend UI
 │   ├── docs.html                # Swagger UI
+│   ├── openapi.json             # OpenAPI spec (served by static)
 │   └── styles.css               # Styling
-├── public/openapi.json          # OpenAPI specification
+├── public/openapi.json          # OpenAPI specification (Vercel CDN)
 ├── requirements.txt             # Python dependencies
 ├── vercel.json                  # Vercel config
 ├── .env.example                 # Template env file
